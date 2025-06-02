@@ -1,42 +1,29 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from sympy import symbols, sympify, apart, residue, I, pi, simplify
-from sympy.abc import z
+from sympy import symbols, sympify, residue, solve
+import sympy
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://vite-react-nu-gilt.vercel.app"])
 
-@app.route('/api/evaluate', methods=['POST'])
-def evaluate_integral():
-    data = request.json
-    f_str = data.get('function')
-    contour = data.get('contour')
-
+@app.route("/api/evaluate", methods=["POST"])
+def evaluate():
+    data = request.get_json()
+    z = symbols('z')
     try:
-        f = sympify(f_str)
-        singularities = []
-        residues = {}
-        integral_val = 0
-
-        f_apart = apart(f, z)
-        den = f_apart.as_numer_denom()[1]
-        poles = den.as_poly(z).all_roots(multiple=True)
-
-        for pole in poles:
-            singularities.append(str(pole))
-            res = residue(f, z, pole)
-            residues[str(pole)] = str(simplify(res))
-            integral_val += 2 * pi * I * res
-
+        f = sympify(data['function'])
+        contour = data['contour']
+        poles = solve(1 / f, z)
+        residues = {str(p): str(residue(f, z, p)) for p in poles}
+        integral = str(2 * sympy.pi * sympy.I * sum(residue(f, z, p) for p in poles))
         return jsonify({
-            'success': True,
-            'singularities': singularities,
-            'residues': residues,
-            'integral': str(simplify(integral_val))
+            "success": True,
+            "singularities": [str(p) for p in poles],
+            "residues": residues,
+            "integral": integral
         })
-
     except Exception as e:
-        return jsonify({ 'success': False, 'error': str(e) })
+        return jsonify({"success": False, "error": str(e)})
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
